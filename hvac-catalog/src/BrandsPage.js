@@ -1,65 +1,68 @@
 import React, { useState, useMemo } from 'react';
 import { Search, ChevronRight, Thermometer } from 'lucide-react';
-import acProductsData from './ac_products.json';
+import allProductsData from './all_products.json';
+
+const headerValues = [
+  'Outdoor Unit Brand Name',
+  'Indoor Unit Brand Name',
+  '',
+  null,
+  undefined
+];
 
 const BrandsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Extract brands dynamically from your real JSON data
+  // Aggregate all products from all categories
+  const products = useMemo(() => Object.values(allProductsData.products_by_category || {}).flat(), []);
+
+  // Extract all unique brands from both outdoor and indoor unit brand names
   const allBrands = useMemo(() => {
-    const brandMap = {};
-    
-    // Access the products array from your JSON structure
-    const products = acProductsData.products || acProductsData;
-    
+    const brandSet = new Set();
     products.forEach(product => {
-      const brandName = product.outdoor_unit?.brand_name;
-      if (!brandName) return;
-      
-      if (!brandMap[brandName]) {
-        brandMap[brandName] = {
-          name: brandName,
-          productCount: 0,
-          series: new Set()
-        };
-      }
-      brandMap[brandName].productCount++;
-      if (product.outdoor_unit?.series_name) {
-        brandMap[brandName].series.add(product.outdoor_unit.series_name);
-      }
+      const outdoor = product.outdoor_unit_brand_name;
+      const indoor = product.indoor_unit_brand_name;
+      if (outdoor && !headerValues.includes(outdoor)) brandSet.add(outdoor.trim());
+      if (indoor && !headerValues.includes(indoor)) brandSet.add(indoor.trim());
     });
-    
-    return Object.values(brandMap).map(brand => ({
-      ...brand,
-      seriesCount: brand.series.size
-    })).sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
+    return Array.from(brandSet).sort((a, b) => a.localeCompare(b));
+  }, [products]);
 
   // Most searched brands (hardcoded as requested)
-  const mostSearchedBrandNames = ['CARRIER', 'TRANE', 'GOODMAN', 'YORK', 'LENNOX', 'RHEEM', 'BRYANT'];
-  
+  const mostSearchedBrandNames = [
+    'LENNOX',
+    'CARRIER',
+    'TRANE',
+    'GOODMAN',
+    'YORK',
+    'RHEEM',
+    'BRYANT'
+  ];
+
+  // Filter and order most searched brands if they exist in allBrands
   const mostSearchedBrands = useMemo(() => {
     return mostSearchedBrandNames
-      .map(name => allBrands.find(brand => brand.name === name))
+      .map(name => allBrands.find(brand => brand.toUpperCase() === name))
       .filter(Boolean);
   }, [allBrands]);
 
+  // All other brands, excluding most searched
   const otherBrands = useMemo(() => {
-    return allBrands.filter(brand => !mostSearchedBrandNames.includes(brand.name));
+    return allBrands.filter(brand => !mostSearchedBrandNames.includes(brand.toUpperCase()));
   }, [allBrands]);
 
   // Filter brands based on search term
   const filteredMostSearched = useMemo(() => {
     if (!searchTerm) return mostSearchedBrands;
     return mostSearchedBrands.filter(brand =>
-      brand.name.toLowerCase().includes(searchTerm.toLowerCase())
+      brand.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [mostSearchedBrands, searchTerm]);
 
   const filteredOtherBrands = useMemo(() => {
     if (!searchTerm) return otherBrands;
     return otherBrands.filter(brand =>
-      brand.name.toLowerCase().includes(searchTerm.toLowerCase())
+      brand.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [otherBrands, searchTerm]);
 
@@ -70,86 +73,83 @@ const BrandsPage = () => {
 
   const BrandCard = ({ brand }) => (
     <button
-      onClick={() => handleBrandClick(brand.name)}
-      className="w-full flex items-center justify-between p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-gray-200"
+      onClick={() => handleBrandClick(brand)}
+      className="w-full flex items-center justify-between p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-blue-100 hover:bg-blue-50"
     >
-      <div className="flex items-center space-x-3">
-        {/* Empty space for brand logo - you'll add PNG images here */}
-        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
+      <div className="flex items-center space-x-4">
+        {/* Empty space for brand logo */}
+        <div className="w-14 h-14 bg-gray-50 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-200">
           <span className="text-xs text-gray-400 font-medium">LOGO</span>
         </div>
         <div className="text-left">
-          <h3 className="font-semibold text-gray-900 text-lg">{brand.name}</h3>
-          <p className="text-sm text-gray-500">
-            {brand.productCount} models • {brand.seriesCount} series
-          </p>
+          <h3 className="font-semibold text-gray-900 text-lg">{brand}</h3>
         </div>
       </div>
       <ChevronRight className="w-5 h-5 text-gray-400" />
     </button>
   );
 
+  // Calculate total products for display
+  const totalProducts = useMemo(() => {
+    return products.length;
+  }, [products]);
+
   return (
-    <div className="max-w-md mx-auto bg-gray-50 min-h-screen">
+    <div className="max-w-2xl mx-auto bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="bg-white p-4 shadow-sm">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-            <Thermometer className="w-5 h-5 text-white" />
+      <div className="bg-white p-6 shadow-sm sticky top-0 z-10">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Thermometer className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-xl font-semibold text-gray-900">HVAC Catalog</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">HVAC Catalog</h1>
         </div>
-        
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search Models and Parts"
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+            placeholder="Search brands..."
+            className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-lg"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
-
       {/* Content */}
-      <div className="p-4">
+      <div className="p-6">
         {/* Most Searched Brands Section */}
         {filteredMostSearched.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-blue-600 mb-4">Most Searched Brands</h2>
-            <div className="space-y-3">
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-blue-600 mb-4">Most Searched Brands</h2>
+            <div className="grid gap-4">
               {filteredMostSearched.map((brand) => (
-                <BrandCard key={brand.name} brand={brand} />
+                <BrandCard key={brand} brand={brand} />
               ))}
             </div>
           </div>
         )}
-
         {/* All Brands Section */}
         {filteredOtherBrands.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold text-blue-600 mb-4">All Brands</h2>
-            <div className="space-y-3">
+            <h2 className="text-xl font-semibold text-blue-600 mb-4">All Brands</h2>
+            <div className="grid gap-4">
               {filteredOtherBrands.map((brand) => (
-                <BrandCard key={brand.name} brand={brand} />
+                <BrandCard key={brand} brand={brand} />
               ))}
             </div>
           </div>
         )}
-
         {/* No Results */}
         {searchTerm && filteredMostSearched.length === 0 && filteredOtherBrands.length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-gray-500">No brands found for "{searchTerm}"</p>
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">No brands found for "{searchTerm}"</p>
           </div>
         )}
-
         {/* Total Count */}
-        <div className="mt-6 pt-4 border-t border-gray-200">
+        <div className="mt-8 pt-6 border-t border-gray-200">
           <p className="text-sm text-gray-500 text-center">
-            {allBrands.length} total brands • {(acProductsData.products || acProductsData).length} total products
+            {allBrands.length} total brands • {totalProducts} total products
           </p>
         </div>
       </div>
