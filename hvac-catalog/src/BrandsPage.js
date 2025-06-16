@@ -169,16 +169,16 @@ const BrandsPage = ({ onSelectBrand, onSelectModel }) => {
   const BrandCard = ({ brand }) => {
     // Manual override for problematic logos
     const manualLogoMap = {
-      'A. O. SMITH': '/brand-logos/AOSMITH.png',
-      'ADVANTAGE': '/brand-logos/ADVANTAGE.jpg',
-      'ALLIED': '/brand-logos/ALLIED.png',
-      'ARCOAIRE': '/brand-logos/ARCOAIRE.jpeg',
-      'ARISTON': '/brand-logos/ARISTON.jpg',
-      'BLUERIDGE': '/brand-logos/BLUERIDGE.png',
-      'BOSCH': '/brand-logos/BOSCH.png',
+      'A. O. SMITH': '/brand-logos/AOSmith.png',
+      'ADVANTAGE': '/brand-logos/Advantage.jpg',
+      'ALLIED': '/brand-logos/Allied.png',
+      'ARCOAIRE': '/brand-logos/Arcoaire.jpeg',
+      'ARISTON': '/brand-logos/Ariston.jpg',
+      'BLUERIDGE': '/brand-logos/Blueridge.png',
+      'BOSCH': '/brand-logos/Bosch.png',
       'FUJITSU': '/brand-logos/Fujitsu.png',
-      'GRIDLESS': '/brand-logos/GRIDLESS.png',
-      'LAARS': '/brand-logos/LAARS.jpeg'
+      'GRIDLESS': '/brand-logos/Gridless.png',
+      'LAARS': '/brand-logos/Laars.jpeg'
     };
 
     // List of possible file extensions and patterns
