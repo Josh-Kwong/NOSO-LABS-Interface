@@ -167,6 +167,20 @@ const BrandsPage = ({ onSelectBrand, onSelectModel }) => {
   };
 
   const BrandCard = ({ brand }) => {
+    // Manual override for problematic logos
+    const manualLogoMap = {
+      'A. O. SMITH': '/brand-logos/AOSMITH.png',
+      'ADVANTAGE': '/brand-logos/ADVANTAGE.jpg',
+      'ALLIED': '/brand-logos/ALLIED.png',
+      'ARCOAIRE': '/brand-logos/ARCOAIRE.jpeg',
+      'ARISTON': '/brand-logos/ARISTON.jpg',
+      'BLUERIDGE': '/brand-logos/BLUERIDGE.png',
+      'BOSCH': '/brand-logos/BOSCH.png',
+      'FUJITSU': '/brand-logos/Fujitsu.png',
+      'GRIDLESS': '/brand-logos/GRIDLESS.png',
+      'LAARS': '/brand-logos/LAARS.jpeg'
+    };
+
     // List of possible file extensions and patterns
     const filePatterns = [
       brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.png',
@@ -192,27 +206,44 @@ const BrandsPage = ({ onSelectBrand, onSelectModel }) => {
     const [logoSrc, setLogoSrc] = useState(null);
 
     React.useEffect(() => {
-      let found = false;
-      let i = 0;
-      const tryNext = () => {
-        if (i >= filePatterns.length) {
-          setLogoSrc(null);
-          return;
-        }
+      // First check manual override
+      if (manualLogoMap[brand]) {
         const img = new window.Image();
-        img.onload = () => {
-          if (!found) {
-            found = true;
-            setLogoSrc(`/brand-logos/${filePatterns[i]}`);
-          }
-        };
+        img.onload = () => setLogoSrc(manualLogoMap[brand]);
         img.onerror = () => {
-          i++;
-          tryNext();
+          console.log(`Manual override failed for ${brand}, trying auto patterns`);
+          tryAutoPatterns();
         };
-        img.src = `/brand-logos/${filePatterns[i]}`;
-      };
-      tryNext();
+        img.src = manualLogoMap[brand];
+        return;
+      }
+
+      // Fall back to automatic pattern matching
+      tryAutoPatterns();
+
+      function tryAutoPatterns() {
+        let found = false;
+        let i = 0;
+        const tryNext = () => {
+          if (i >= filePatterns.length) {
+            setLogoSrc(null);
+            return;
+          }
+          const img = new window.Image();
+          img.onload = () => {
+            if (!found) {
+              found = true;
+              setLogoSrc(`/brand-logos/${filePatterns[i]}`);
+            }
+          };
+          img.onerror = () => {
+            i++;
+            tryNext();
+          };
+          img.src = `/brand-logos/${filePatterns[i]}`;
+        };
+        tryNext();
+      }
       // eslint-disable-next-line
     }, [brand]);
 
