@@ -5,6 +5,7 @@ import allProductsData from './all_products.json';
 const headerValues = [
   'Outdoor Unit Brand Name',
   'Indoor Unit Brand Name',
+  'Brand Name',
   '',
   null,
   undefined
@@ -16,14 +17,17 @@ const BrandsPage = () => {
   // Aggregate all products from all categories
   const products = useMemo(() => Object.values(allProductsData.products_by_category || {}).flat(), []);
 
-  // Extract all unique brands from both outdoor and indoor unit brand names
+  // Extract all unique brands using the first 'brand' key found in each product
   const allBrands = useMemo(() => {
     const brandSet = new Set();
     products.forEach(product => {
-      const outdoor = product.outdoor_unit_brand_name;
-      const indoor = product.indoor_unit_brand_name;
-      if (outdoor && !headerValues.includes(outdoor)) brandSet.add(outdoor.trim());
-      if (indoor && !headerValues.includes(indoor)) brandSet.add(indoor.trim());
+      const brandKey = Object.keys(product).find(
+        key => key.toLowerCase().includes('brand') && !headerValues.includes(product[key]) && typeof product[key] === 'string' && product[key].trim() !== ''
+      );
+      if (brandKey) {
+        const brand = product[brandKey].trim();
+        if (!headerValues.includes(brand)) brandSet.add(brand);
+      }
     });
     return Array.from(brandSet).sort((a, b) => a.localeCompare(b));
   }, [products]);

@@ -1,50 +1,67 @@
 #!/usr/bin/env python3
 """
-AHRI Directory Web Scraper - Expanded from Working Original
-File name: ahri_expanded_scraper.py
-Based on proven working script - ALL PRODUCTS, NO RESTRICTIONS
+AHRI Specialized Scraper - 6 Products Only
+File name: ahri_specialized_6_products.py
+Specializes in the 6 main product categories from homepage cards
 """
 
 import json
 import time
 import logging
+import hashlib
+from collections import defaultdict
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class AHRIExpandedScraper:
-    def __init__(self, headless=True):
+class AHRISpecialized6Products:
+    def __init__(self, headless=False):
         self.base_url = "https://www.ahridirectory.org"
         self.driver = None
         self.headless = headless
         
-        # All product categories with targets (from your screenshots)
-        self.product_targets = {
-            # High priority - 300 each
-            "Air Conditioning": 300,
-            "Air-Source Heat Pumps": 300,
-            "Residential Furnaces": 300,
-            "Residential Water Heaters": 300,
-            "Residential Boilers": 300,
-            "Geothermal - Water-Source Heat Pumps": 300,
-            
-            # Medium priority - 100 each
-            "Commercial Furnaces": 100,
-            "Datacom Cooling": 100,
-            "Direct Heating Equipment": 100,
-            "Forced Circulation Air-Cooling & Air-Heating Coils": 100,
-            "Packaged Terminal Air Conditioners": 100,
-            "Packaged Terminal Heat Pumps": 100,
-            "Room Fan Coil Units": 100,
-            "Single Package Vertical Air-Conditioners and Heat Pumps": 100,
-            "Unitary Large Equipment": 100,
-            "Variable Refrigerant Flow (VRF) Multi-Split Air Conditioning and Heat Pump Equipment": 100,
-            "Geothermal - Direct Geoexchange Heat Pumps": 100
+        # Track products globally
+        self.seen_products = set()
+        self.duplicate_count = 0
+        self.brand_counts = defaultdict(int)
+        self.max_per_brand = 40
+        
+        # EXACT 6 categories from homepage cards - in order they appear
+        self.categories = {
+            "Air Conditioning": {
+                "target": 250,
+                "click_text": "Air Conditioning",
+                "verify_text": "Air Conditioners"
+            },
+            "Air-Source Heat Pumps": {
+                "target": 250,
+                "click_text": "Air-Source Heat Pumps",
+                "verify_text": "Heat Pumps"
+            },
+            "Residential Furnaces": {
+                "target": 250,
+                "click_text": "Residential Furnaces",
+                "verify_text": "Furnaces"
+            },
+            "Residential Water Heaters": {
+                "target": 250,
+                "click_text": "Residential Water Heaters",
+                "verify_text": "Water Heaters"
+            },
+            "Residential Boilers": {
+                "target": 250,
+                "click_text": "Residential Boilers",
+                "verify_text": "Boilers"
+            },
+            "Geothermal - Water-Source Heat Pumps": {
+                "target": 250,
+                "click_text": "Geothermal - Water-Source Heat Pumps",
+                "verify_text": "Geothermal"
+            }
         }
         
     def setup_driver(self):
-        """Setup Chrome WebDriver - EXACT COPY from working original"""
+        """Setup Chrome WebDriver - one session for all"""
         try:
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
@@ -52,569 +69,481 @@ class AHRIExpandedScraper:
             from selenium.webdriver.chrome.service import Service
             
             chrome_options = Options()
-            
             if self.headless:
                 chrome_options.add_argument("--headless")
             
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             
-            # Use webdriver-manager to automatically handle ChromeDriver
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.driver.implicitly_wait(10)
             
-            logger.info("✅ WebDriver setup successful")
+            logger.info("✅ Single WebDriver session created for all 6 categories")
             return True
             
-        except ImportError:
-            logger.error("❌ Selenium not installed. Run: pip install selenium webdriver-manager")
-            return False
         except Exception as e:
-            logger.error(f"❌ Error setting up WebDriver: {e}")
-            logger.error("Make sure Chrome browser is installed")
+            logger.error(f"❌ WebDriver setup failed: {e}")
             return False
     
-    def navigate_to_search(self, product_type=None):
-        """Navigate to search page - EXACT COPY from working original"""
+    def go_to_homepage_fresh(self):
+        """Go to AHRI homepage and handle any popups"""
         try:
             from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
             
-            logger.info(f"🌐 Navigating to AHRI directory{' for ' + product_type if product_type else ''}...")
+            logger.info("🏠 Loading fresh AHRI homepage...")
             self.driver.get(self.base_url)
+            time.sleep(4)
             
-            # Wait for page to load
-            WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+            # Handle cookie banner
+            try:
+                accept_button = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Accept')]")
+                if accept_button.is_displayed():
+                    accept_button.click()
+                    logger.info("✅ Accepted cookies")
+                    time.sleep(2)
+            except:
+                pass
             
-            # Try direct URLs for search - EXACT COPY from working original
-            direct_urls = [
-                f"{self.base_url}/search/101?searchMode=program",
-                f"{self.base_url}/Search/SearchHome", 
-                f"{self.base_url}/NewSearch?programId=68&searchTypeId=3&productTypeId=1",
-                f"{self.base_url}/search/air-conditioners"
-            ]
+            # Scroll to make sure category cards are visible
+            self.driver.execute_script("window.scrollTo(0, 600);")
+            time.sleep(2)
             
-            for url in direct_urls:
-                try:
-                    logger.info(f"🔗 Trying URL: {url}")
-                    self.driver.get(url)
-                    time.sleep(3)
-                    
-                    # Check if we have a functional page
-                    if self.driver.find_elements(By.CSS_SELECTOR, "input, button, form, table"):
-                        logger.info("✅ Successfully navigated to search page")
-                        return True
-                        
-                except Exception as e:
-                    logger.debug(f"URL failed: {e}")
-                    continue
-            
-            logger.error("❌ Could not find search page")
-            return False
+            logger.info("✅ Homepage loaded and ready")
+            return True
             
         except Exception as e:
-            logger.error(f"❌ Error navigating: {e}")
+            logger.error(f"❌ Error loading homepage: {e}")
             return False
     
-    def perform_search(self):
-        """Perform the search - EXACT COPY from working original"""
+    def find_and_click_category_card(self, category_name, category_info):
+        """Find and click the specific category card"""
         try:
             from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
             from selenium.webdriver.common.action_chains import ActionChains
             
-            logger.info("🔍 Looking for search functionality...")
+            click_text = category_info["click_text"]
+            logger.info(f"🎯 Looking for category card: '{click_text}'")
             
-            # Look for search button - EXACT COPY from working original
+            # Look for the category card - try multiple approaches
+            found_element = None
+            
+            # Strategy 1: Look for exact text in any element
+            try:
+                xpath = f"//*[contains(text(), '{click_text}')]"
+                elements = self.driver.find_elements(By.XPATH, xpath)
+                for elem in elements:
+                    if elem.is_displayed() and click_text.lower() in elem.text.lower():
+                        found_element = elem
+                        logger.info(f"✅ Found exact match: '{elem.text.strip()}'")
+                        break
+            except:
+                pass
+            
+            # Strategy 2: Look for partial matches (for long names)
+            if not found_element:
+                search_terms = click_text.split()[:2]  # First 2 words
+                for term in search_terms:
+                    try:
+                        xpath = f"//*[contains(text(), '{term}')]"
+                        elements = self.driver.find_elements(By.XPATH, xpath)
+                        for elem in elements:
+                            if elem.is_displayed() and term.lower() in elem.text.lower():
+                                # Check if this looks like our category
+                                elem_text = elem.text.lower()
+                                if any(word in elem_text for word in click_text.lower().split()):
+                                    found_element = elem
+                                    logger.info(f"✅ Found partial match: '{elem.text.strip()}'")
+                                    break
+                        if found_element:
+                            break
+                    except:
+                        continue
+            
+            if not found_element:
+                logger.error(f"❌ Could not find category card for '{click_text}'")
+                return False
+            
+            # Try to click the element or find its clickable parent
+            clicked = False
+            current_element = found_element
+            
+            for attempt in range(3):  # Try element, parent, grandparent
+                try:
+                    # Scroll element into view
+                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", current_element)
+                    time.sleep(1)
+                    
+                    # Get current URL to check if we navigate
+                    current_url = self.driver.current_url
+                    
+                    # Try to click
+                    ActionChains(self.driver).move_to_element(current_element).click().perform()
+                    time.sleep(4)  # Wait for navigation
+                    
+                    # Check if URL changed (indicating successful navigation)
+                    new_url = self.driver.current_url
+                    if new_url != current_url:
+                        logger.info(f"✅ Successfully clicked '{click_text}' - navigated to new page")
+                        logger.info(f"📍 New URL: {new_url}")
+                        clicked = True
+                        break
+                    else:
+                        logger.info(f"⚠️  Click didn't navigate, trying parent element...")
+                        current_element = current_element.find_element(By.XPATH, "..")
+                        
+                except Exception as e:
+                    logger.debug(f"Click attempt {attempt + 1} failed: {e}")
+                    try:
+                        current_element = current_element.find_element(By.XPATH, "..")
+                    except:
+                        break
+            
+            if not clicked:
+                logger.error(f"❌ Failed to click category card for '{click_text}'")
+                return False
+            
+            # Verify we're on the right page
+            try:
+                page_title = self.driver.title
+                verify_text = category_info.get("verify_text", "")
+                if verify_text and verify_text.lower() in page_title.lower():
+                    logger.info(f"✅ Verified correct page: {page_title}")
+                else:
+                    logger.info(f"ℹ️  On page: {page_title}")
+            except:
+                pass
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error clicking category card: {e}")
+            return False
+    
+    def click_search_button_and_wait(self):
+        """Click Search button and wait for results"""
+        try:
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.common.action_chains import ActionChains
+            
+            logger.info("🔍 Looking for Search button...")
+            
+            # Find search button
             search_selectors = [
-                "input[type='submit'][value*='Search']",
-                "button[type='submit']", 
-                ".search-button",
-                "#search-btn",
-                "//button[contains(text(), 'Search')]",
-                "//input[@value='Search']"
+                "//button[text()='Search']",
+                "//input[@value='Search']",
+                "//button[contains(@class, 'btn-primary')]",
+                "//button[@type='submit']"
             ]
             
             search_button = None
             for selector in search_selectors:
                 try:
-                    if selector.startswith("//"):
-                        search_button = self.driver.find_element(By.XPATH, selector)
-                    else:
-                        search_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    
-                    if search_button and search_button.is_displayed():
-                        logger.info(f"✅ Found search button: {selector}")
+                    elements = self.driver.find_elements(By.XPATH, selector)
+                    for elem in elements:
+                        if elem.is_displayed() and elem.is_enabled():
+                            search_button = elem
+                            logger.info(f"✅ Found search button")
+                            break
+                    if search_button:
                         break
-                        
                 except:
                     continue
             
-            if search_button:
-                # Click search button
-                ActionChains(self.driver).move_to_element(search_button).click().perform()
-                logger.info("🖱️  Clicked search button")
-                time.sleep(5)
-            else:
-                logger.info("ℹ️  No search button found, checking for existing results...")
+            if not search_button:
+                logger.warning("⚠️  No search button found")
+                return True  # Maybe results are already showing
             
-            # Wait for results to appear - EXACT COPY from working original
+            # Click search button
             try:
-                WebDriverWait(self.driver, 15).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "table, .results, .product-list, [class*='result']"))
-                )
-                logger.info("✅ Search results found")
+                ActionChains(self.driver).move_to_element(search_button).click().perform()
+                logger.info("🖱️  Clicked Search button")
+                time.sleep(8)  # Wait for results to load
                 return True
-            except:
-                logger.warning("⚠️  No clear results found")
-                return True  # CHANGED: Trust the site, continue anyway
-                
+            except Exception as e:
+                logger.error(f"❌ Error clicking search button: {e}")
+                return False
+            
         except Exception as e:
-            logger.error(f"❌ Error performing search: {e}")
-            return True  # CHANGED: Trust the site, continue anyway
+            logger.error(f"❌ Error in search process: {e}")
+            return False
     
-    def extract_all_products(self, max_results=500):
-        """Extract ALL product data with proper column names"""
+    def extract_table_data(self, category_name, target_count):
+        """Extract data from results table"""
         try:
             from selenium.webdriver.common.by import By
             
-            logger.info("📊 Extracting ALL product data...")
-            all_products = []
+            logger.info(f"📊 Extracting data for {category_name}...")
             
-            # Try to find results table - EXACT COPY from working original
-            table_selectors = [
-                "table",
-                ".results-table",
-                ".product-list", 
-                "[class*='result']",
-                "tbody",
-                ".data-table"
-            ]
-            
-            results_container = None
-            for selector in table_selectors:
-                try:
-                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    if elements:
-                        results_container = elements[0]
-                        logger.info(f"✅ Found results container: {selector}")
-                        break
-                except:
-                    continue
-            
-            if not results_container:
-                logger.error("❌ Could not find results table")
-                return []  # Keep this check as it's essential
-            
-            # Find all product rows
-            rows = results_container.find_elements(By.CSS_SELECTOR, "tr")
-            
-            if not rows or len(rows) < 1:  # CHANGED: Allow even 1 row
-                logger.error("❌ No product rows found")
+            # Find table
+            tables = self.driver.find_elements(By.TAG_NAME, "table")
+            if not tables:
+                logger.error("❌ No table found")
                 return []
             
-            logger.info(f"📋 Found {len(rows)} rows to process")
+            # Use largest table (most likely to be results)
+            main_table = max(tables, key=lambda t: len(t.find_elements(By.TAG_NAME, "tr")))
+            rows = main_table.find_elements(By.TAG_NAME, "tr")
             
-            # Get headers first
-            original_headers, clean_headers = self.get_table_headers()
+            logger.info(f"📋 Table has {len(rows)} rows")
             
-            if original_headers:
-                logger.info(f"📊 Column headers found: {len(original_headers)} columns")
-                logger.info(f"📋 Sample headers: {original_headers[:5]}...")
-            else:
-                logger.warning("⚠️  No headers found, using generic column names")
+            if len(rows) < 2:
+                logger.error("❌ No data rows")
+                return []
             
-            # Skip header row if it exists - simplified check
-            start_index = 1 if len(rows) > 1 and self.is_header_row(rows[0]) else 0
+            # Extract headers
+            header_cells = rows[0].find_elements(By.CSS_SELECTOR, "th, td")
+            headers = [cell.text.strip() for cell in header_cells]
             
-            processed_count = 0
-            for i, row in enumerate(rows[start_index:]):
-                if len(all_products) >= max_results:
+            if headers:
+                logger.info(f"📋 Headers: {headers[:3]}...")
+            
+            # Extract products
+            products = []
+            for i, row in enumerate(rows[1:]):  # Skip header
+                if len(products) >= target_count:
                     break
                 
                 try:
-                    product_data = self.extract_product_from_row(row, original_headers, clean_headers)
+                    cells = row.find_elements(By.CSS_SELECTOR, "td, th")
+                    cell_texts = [cell.text.strip() for cell in cells]
                     
-                    # REMOVED ALL VALIDATION - trust AHRI data completely
-                    if product_data:  # Only check if data exists at all
-                        all_products.append(product_data)
-                        processed_count += 1
-                        
-                        if processed_count % 50 == 0:
-                            logger.info(f"📦 Extracted {processed_count} products...")
-                        
+                    if not any(cell_texts):
+                        continue
+                    
+                    # Create product
+                    product = {
+                        "extraction_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "data_source": "ahri_specialized_6_products",
+                        "product_category": category_name
+                    }
+                    
+                    # Map cells to headers
+                    for j, text in enumerate(cell_texts):
+                        if text and j < len(headers) and headers[j]:
+                            product[headers[j]] = text
+                        elif text:
+                            product[f"field_{j}"] = text
+                    
+                    # Basic validation and duplicate check
+                    if self.is_valid_product(product) and not self.is_duplicate(product):
+                        if self.check_brand_diversity(product):
+                            products.append(product)
+                            
+                            if len(products) % 50 == 0:
+                                logger.info(f"📦 {len(products)} products extracted...")
+                
                 except Exception as e:
-                    logger.debug(f"Error processing row {i}: {e}")
                     continue
             
-            logger.info(f"✅ Successfully extracted {len(all_products)} products")
-            return all_products
+            logger.info(f"✅ Extracted {len(products)} products for {category_name}")
+            return products
             
         except Exception as e:
-            logger.error(f"❌ Error extracting products: {e}")
+            logger.error(f"❌ Error extracting data: {e}")
             return []
     
-    def is_header_row(self, row):
-        """Check if a row is a header row - EXACT COPY from working original"""
+    def is_valid_product(self, product):
+        """Basic product validation"""
+        # Must have at least 3 meaningful fields
+        meaningful_fields = [k for k, v in product.items() 
+                           if k not in ['extraction_timestamp', 'data_source', 'product_category'] 
+                           and v and len(str(v)) > 1]
+        return len(meaningful_fields) >= 3
+    
+    def is_duplicate(self, product):
+        """Check for duplicates"""
         try:
-            text = row.text.lower()
-            header_keywords = ['ahri', 'reference', 'brand', 'model', 'outdoor', 'indoor', 'series']
-            keyword_count = sum(1 for keyword in header_keywords if keyword in text)
-            return keyword_count >= 2 and len(text.split()) < 20
+            key_parts = []
+            for key, value in product.items():
+                if key not in ['extraction_timestamp', 'data_source']:
+                    if value:
+                        key_parts.append(f"{key}:{value}")
+            
+            fingerprint = "|".join(sorted(key_parts))
+            hash_val = hashlib.md5(fingerprint.encode()).hexdigest()
+            
+            if hash_val in self.seen_products:
+                self.duplicate_count += 1
+                return True
+            
+            self.seen_products.add(hash_val)
+            return False
         except:
             return False
     
-    def get_table_headers(self):
-        """Extract column headers from the table"""
+    def check_brand_diversity(self, product):
+        """Check brand diversity"""
         try:
-            from selenium.webdriver.common.by import By
+            # Find brand field
+            brand = "UNKNOWN"
+            brand_fields = ["Outdoor Unit Brand Name", "Brand Name", "Brand", "Manufacturer"]
             
-            # Try multiple selectors to find headers
-            header_selectors = [
-                "table thead tr th",
-                "table tr:first-child th", 
-                "table tr:first-child td",
-                ".data-table thead th",
-                ".results-table thead th"
-            ]
-            
-            headers = []
-            for selector in header_selectors:
-                try:
-                    header_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    if header_elements:
-                        headers = [elem.text.strip() for elem in header_elements]
-                        if headers and len(headers) > 2:  # Valid header row
-                            break
-                except:
-                    continue
-            
-            # Clean headers for use as JSON keys
-            cleaned_headers = []
-            for header in headers:
-                if header:
-                    # Clean header text to create valid JSON keys
-                    clean_key = (header.lower()
-                                .replace(' ', '_')
-                                .replace('(', '')
-                                .replace(')', '')
-                                .replace('#', 'number')
-                                .replace('.', '')
-                                .replace('-', '_')
-                                .replace('/', '_')
-                                .replace('&', 'and')
-                                .replace('*', '')
-                                .replace('®', '')
-                                .replace('%', 'percent')
-                                .replace(',', '')
-                                .replace('?', '')
-                                .replace(':', ''))
-                    # Remove any remaining special characters
-                    clean_key = ''.join(c for c in clean_key if c.isalnum() or c == '_')
-                    # Remove multiple underscores
-                    while '__' in clean_key:
-                        clean_key = clean_key.replace('__', '_')
-                    clean_key = clean_key.strip('_')
-                    
-                    cleaned_headers.append(clean_key if clean_key else f"column_{len(cleaned_headers)}")
-                else:
-                    cleaned_headers.append(f"column_{len(cleaned_headers)}")
-            
-            return headers, cleaned_headers
-            
-        except Exception as e:
-            logger.debug(f"Error getting headers: {e}")
-            return [], []
-
-    def extract_product_from_row(self, row, original_headers, clean_headers):
-        """Extract product data from a single row with proper column names"""
-        try:
-            from selenium.webdriver.common.by import By
-            
-            # Get all cells in the row
-            cells = row.find_elements(By.CSS_SELECTOR, "td, th")
-            
-            if len(cells) < 1:
-                return None
-            
-            # Extract text from cells
-            cell_texts = [cell.text.strip() for cell in cells]
-            
-            # Create comprehensive product data
-            product = {
-                "extraction_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "data_source": "ahri_directory_expanded",
-            }
-            
-            # Map data using actual column names
-            for i, text in enumerate(cell_texts):
-                if text:  # Only add non-empty data
-                    # Use clean header name if available, otherwise generic name
-                    if i < len(clean_headers) and clean_headers[i]:
-                        key = clean_headers[i]
-                    else:
-                        key = f"column_{i}"
-                    
-                    product[key] = text
-                    
-                    # Also add the original header name for reference
-                    if i < len(original_headers) and original_headers[i]:
-                        product[f"{key}_original_header"] = original_headers[i]
-            
-            return product
-            
-        except Exception as e:
-            logger.debug(f"Error extracting from row: {e}")
-            return None
-    
-    def handle_pagination(self, current_products, target_count):
-        """Handle pagination to get more results"""
-        try:
-            from selenium.webdriver.common.by import By
-            
-            all_products = current_products.copy()
-            page_count = 1
-            
-            while len(all_products) < target_count and page_count < 10:  # Limit pages for speed
-                # Look for next page button
-                next_selectors = [
-                    "a[aria-label='Next']",
-                    ".pagination-next",
-                    ".next-page",
-                    "//a[contains(text(), 'Next')]",
-                    "//button[contains(text(), 'Next')]",
-                    ".pagination a:last-child"
-                ]
-                
-                next_button = None
-                for selector in next_selectors:
-                    try:
-                        if selector.startswith("//"):
-                            next_button = self.driver.find_element(By.XPATH, selector)
-                        else:
-                            next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                        
-                        if next_button and next_button.is_enabled():
-                            break
-                        else:
-                            next_button = None
-                    except:
-                        continue
-                
-                if not next_button:
-                    logger.info("📄 No more pages available")
-                    break
-                
-                # Click next page
-                try:
-                    self.driver.execute_script("arguments[0].click();", next_button)
-                    page_count += 1
-                    logger.info(f"📄 Moved to page {page_count}")
-                    time.sleep(3)
-                    
-                    # Extract products from new page
-                    page_products = self.extract_all_products(target_count - len(all_products))
-                    if page_products:
-                        all_products.extend(page_products)
-                        logger.info(f"📦 Total products collected: {len(all_products)}")
-                    else:
-                        break
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error navigating to next page: {e}")
+            for field in brand_fields:
+                if field in product and product[field]:
+                    brand = str(product[field]).upper().strip()
                     break
             
-            return all_products[:target_count]
+            # If no brand field, use first meaningful field
+            if brand == "UNKNOWN":
+                for key, value in product.items():
+                    if key not in ['extraction_timestamp', 'data_source', 'product_category']:
+                        if value and 2 < len(str(value)) < 30:  # Reasonable brand name length
+                            brand = str(value).upper().strip()
+                            break
             
-        except Exception as e:
-            logger.error(f"❌ Error handling pagination: {e}")
-            return current_products
-    
-    def save_all_data(self, all_category_data, filename="ahri_all_products.json"):
-        """Save ALL scraped products to JSON file"""
-        try:
-            total_products = sum(len(products) for products in all_category_data.values())
+            # Check brand limit
+            if self.brand_counts[brand] >= self.max_per_brand:
+                return False
             
-            output_data = {
-                "scraping_summary": {
-                    "total_products": total_products,
-                    "total_categories": len(all_category_data),
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "source": "ahridirectory.org",
-                    "scraping_method": "expanded_selenium_no_restrictions",
-                    "data_guarantee": "ALL_AVAILABLE_DATA_NO_FILTERING"
-                },
-                "category_breakdown": {
-                    category: len(products) for category, products in all_category_data.items()
-                },
-                "products_by_category": all_category_data
-            }
-            
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(output_data, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"✅ Successfully saved {total_products} products from {len(all_category_data)} categories to {filename}")
+            self.brand_counts[brand] += 1
             return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error saving to JSON: {e}")
-            return False
+        except:
+            return True
     
-    def scrape_single_category(self, category, target_count):
-        """Scrape a single category with fresh browser session"""
+    def scrape_single_category(self, category_name, category_info):
+        """Scrape one category following exact process"""
         try:
-            logger.info(f"🎯 Scraping {category} (target: {target_count})")
+            target_count = category_info["target"]
+            logger.info(f"\n🎯 === {category_name.upper()} (Target: {target_count}) ===")
             
-            # Setup fresh WebDriver for this category
-            if not self.setup_driver():
-                logger.error(f"❌ WebDriver setup failed for {category}")
+            # Step 1: Go to fresh homepage
+            if not self.go_to_homepage_fresh():
                 return []
             
-            # Navigate to search page
-            if not self.navigate_to_search(category):
-                logger.warning(f"⚠️  Navigation failed for {category}")
+            # Step 2: Find and click category card
+            if not self.find_and_click_category_card(category_name, category_info):
                 return []
             
-            # Perform search
-            if not self.perform_search():
-                logger.warning(f"⚠️  Search failed for {category}")
+            # Step 3: Click Search button
+            if not self.click_search_button_and_wait():
                 return []
             
-            # Extract products
-            products = self.extract_all_products(target_count)
+            # Step 4: Extract table data
+            products = self.extract_table_data(category_name, target_count)
             
-            # Handle pagination if needed
-            if len(products) < target_count:
-                logger.info(f"🔄 Need more products for {category}, trying pagination...")
-                products = self.handle_pagination(products, target_count)
-            
-            # Add category info to each product
-            for product in products:
-                product['product_category'] = category
-                product['target_count'] = target_count
-            
-            logger.info(f"✅ {category}: {len(products)}/{target_count} products collected")
-            
-            # Close this browser session
-            if self.driver:
-                self.driver.quit()
-                self.driver = None
+            if products:
+                brands = len(set(self.extract_brand(p) for p in products))
+                logger.info(f"✅ {category_name}: {len(products)} products from {brands} brands")
+            else:
+                logger.warning(f"⚠️  {category_name}: No products extracted")
             
             return products
             
         except Exception as e:
-            logger.error(f"❌ Error scraping {category}: {e}")
+            logger.error(f"❌ Error scraping {category_name}: {e}")
             return []
-        finally:
-            # Ensure driver is closed
-            if self.driver:
-                try:
-                    self.driver.quit()
-                    self.driver = None
-                except:
-                    pass
-
-    def scrape_all_products(self):
-        """Main scraping function - ALL PRODUCTS, ALL CATEGORIES"""
+    
+    def extract_brand(self, product):
+        """Extract brand for reporting"""
+        brand_fields = ["Outdoor Unit Brand Name", "Brand Name", "Brand"]
+        for field in brand_fields:
+            if field in product and product[field]:
+                return str(product[field]).upper()
+        return "UNKNOWN"
+    
+    def run_all_categories(self):
+        """Main function - scrape all 6 categories"""
         try:
-            total_target = sum(self.product_targets.values())
-            logger.info(f"🚀 Starting EXPANDED scraping for ALL {len(self.product_targets)} product categories...")
-            logger.info(f"🎯 Target: {total_target} total products")
-            logger.info("⚠️  NO RESTRICTIONS - trusting ALL AHRI data!")
-            logger.info("🔄 Using fresh browser session for each category to avoid timeouts")
+            if not self.setup_driver():
+                return {}
             
-            all_category_data = {}
+            total_target = sum(cat["target"] for cat in self.categories.values())
+            logger.info(f"🚀 AHRI SPECIALIZED 6 PRODUCTS SCRAPER")
+            logger.info(f"🎯 Target: {total_target} products from 6 categories")
+            logger.info(f"🔄 Process: Homepage → Click Card → Search → Extract")
             
-            for category, target_count in self.product_targets.items():
+            all_results = {}
+            
+            for category_name, category_info in self.categories.items():
                 try:
-                    # Scrape this category with fresh browser session
-                    products = self.scrape_single_category(category, target_count)
-                    
+                    products = self.scrape_single_category(category_name, category_info)
                     if products:
-                        all_category_data[category] = products
-                        logger.info(f"✅ {category}: SUCCESS - {len(products)} products")
-                    else:
-                        logger.warning(f"⚠️  {category}: No products found")
+                        all_results[category_name] = products
                     
-                    # Brief pause between categories
+                    # Pause between categories
                     time.sleep(3)
                     
                 except Exception as e:
-                    logger.error(f"❌ Error with {category}: {e}")
+                    logger.error(f"❌ {category_name} failed: {e}")
                     continue
             
-            # Save all results
-            if all_category_data:
-                self.save_all_data(all_category_data)
+            # Save results
+            if all_results:
+                total_products = sum(len(products) for products in all_results.values())
                 
-                # Print final summary
-                total_collected = sum(len(products) for products in all_category_data.values())
+                output_data = {
+                    "scraping_summary": {
+                        "total_products": total_products,
+                        "categories_scraped": len(all_results),
+                        "duplicates_filtered": self.duplicate_count,
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "source": "ahridirectory.org",
+                        "method": "specialized_6_products_scraper"
+                    },
+                    "brand_distribution": dict(sorted(self.brand_counts.items(), key=lambda x: x[1], reverse=True)),
+                    "products_by_category": all_results
+                }
                 
-                print(f"\n🎉 EXPANDED SCRAPING COMPLETED!")
-                print(f"✅ Successfully scraped: {len(all_category_data)} categories")
-                print(f"📦 Total products collected: {total_collected}")
-                print(f"🎯 Target achievement: {total_collected}/{total_target} ({(total_collected/total_target)*100:.1f}%)")
+                filename = "ahri_6_products_results.json"
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(output_data, f, indent=2, ensure_ascii=False)
                 
-                print(f"\n📋 Category breakdown:")
-                for category, products in all_category_data.items():
-                    target = self.product_targets[category]
-                    print(f"   • {category}: {len(products)}/{target} products")
+                print(f"\n🎉 6 PRODUCTS SCRAPING COMPLETED!")
+                print(f"✅ Categories successfully scraped: {len(all_results)}/6")
+                print(f"📦 Total products collected: {total_products}")
+                print(f"🚫 Duplicates filtered: {self.duplicate_count}")
+                print(f"📁 Data saved to {filename}")
                 
-                return all_category_data
+                # Show results breakdown
+                print(f"\n📋 Results by category:")
+                for category, products in all_results.items():
+                    target = self.categories[category]['target']
+                    brands = len(set(self.extract_brand(p) for p in products))
+                    print(f"   • {category}: {len(products)}/{target} products ({brands} brands)")
+                
+                # Show top brands
+                if self.brand_counts:
+                    print(f"\n🏷️  Top 10 brands across all categories:")
+                    top_brands = sorted(self.brand_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                    for brand, count in top_brands:
+                        print(f"   • {brand}: {count} products")
+                
+                return all_results
             else:
-                logger.error("❌ No products collected from any category")
+                print("❌ No categories were successfully scraped")
                 return {}
                 
         except Exception as e:
-            logger.error(f"❌ Error during expanded scraping: {e}")
+            logger.error(f"❌ Scraper error: {e}")
             return {}
-        # Note: No finally block needed since each category handles its own driver cleanup
-    
-    def __del__(self):
-        """Cleanup when object is destroyed"""
-        if hasattr(self, 'driver') and self.driver:
-            try:
-                self.driver.quit()
-            except:
-                pass
+        finally:
+            if self.driver:
+                try:
+                    input("\n🛑 Press Enter to close browser...")
+                    self.driver.quit()
+                    logger.info("✅ Browser closed")
+                except:
+                    pass
 
 def main():
-    """Main function to run the EXPANDED scraper"""
-    # Set headless=False to see the browser in action (useful for debugging)
-    scraper = AHRIExpandedScraper(headless=True)
+    """Run the specialized 6 products scraper"""
+    scraper = AHRISpecialized6Products(headless=False)  # Visible browser
     
     try:
-        all_products = scraper.scrape_all_products()
+        results = scraper.run_all_categories()
         
-        if all_products:
-            total = sum(len(products) for products in all_products.values())
-            print(f"\n✅ SUCCESS! Scraped {total} products across {len(all_products)} categories!")
-            print(f"📁 All data saved to ahri_all_products.json")
-            print(f"🔒 NO RESTRICTIONS APPLIED - all available data captured")
-            
-            # Show sample of first product from first category
-            first_category = list(all_products.keys())[0]
-            if all_products[first_category]:
-                print(f"\n📋 Sample product data from {first_category}:")
-                print(json.dumps(all_products[first_category][0], indent=2))
-            
+        if results:
+            print(f"\n✅ Successfully scraped {len(results)} categories!")
+            print("📄 Check ahri_6_products_results.json for detailed data")
         else:
-            print("\n❌ SCRAPING FAILED - No data could be obtained")
-            print("💡 Try running with headless=False to see what's happening:")
-            print("   Change line in script: scraper = AHRIExpandedScraper(headless=False)")
+            print("\n❌ Scraping failed")
             
     except KeyboardInterrupt:
-        print("\n⏹️  Scraping interrupted by user")
+        print("\n⏹️  Scraping interrupted")
     except Exception as e:
-        print(f"❌ Error during scraping: {e}")
+        print(f"❌ Error: {e}")
 
 if __name__ == "__main__":
     main()
