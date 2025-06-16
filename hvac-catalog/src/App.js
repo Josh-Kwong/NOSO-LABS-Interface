@@ -1,11 +1,8 @@
-import BrandsPage from './BrandsPage';
+import React from 'react';
+import MainHVACNavigator from './MainHVACNavigator';
 
 function App() {
-  return (
-    <div className="App">
-      <BrandsPage />
-    </div>
-  );
+  return <MainHVACNavigator />;
 }
 
 export default App;

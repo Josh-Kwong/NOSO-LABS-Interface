@@ -11,7 +11,7 @@ const headerValues = [
   undefined
 ];
 
-const BrandsPage = () => {
+const BrandsPage = ({ onSelectBrand }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Aggregate all products from all categories
@@ -31,7 +31,7 @@ const BrandsPage = () => {
     if (upper.startsWith('KEPLER')) return 'KEPLER';
     if (upper.startsWith('RUUD')) return 'RUUD';
     if (upper.startsWith('SAINT ROCH')) return 'SAINT ROCH';
-    return brand.trim();
+    return upper;
   };
 
   // Extract all unique brands using the first 'brand' key found in each product
@@ -86,8 +86,9 @@ const BrandsPage = () => {
   }, [otherBrands, searchTerm]);
 
   const handleBrandClick = (brandName) => {
-    console.log(`Clicked on brand: ${brandName}`);
-    // TODO: Navigate to products page when ready
+    if (onSelectBrand) {
+      onSelectBrand(brandName);
+    }
   };
 
   const BrandCard = ({ brand }) => {
@@ -171,6 +172,7 @@ const BrandsPage = () => {
     return products.length;
   }, [products]);
 
+  // Layer 1: Main Brands Page
   return (
     <div className="max-w-2xl mx-auto bg-gray-50 min-h-screen">
       {/* Header */}
