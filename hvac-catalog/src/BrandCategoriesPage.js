@@ -11,53 +11,86 @@ const BrandCategoriesPage = ({ brand, onSelectCategory, onBack, selectedCategory
     return brandName.trim().toUpperCase();
   };
 
-  // Logo detection logic (same as in BrandsPage)
+  // Logo detection logic with manual override
   React.useEffect(() => {
     if (!brand) {
       setLogoSrc(null);
       return;
     }
-    const filePatterns = [
-      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.png',
-      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.jpg',
-      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.jpeg',
-      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.webp',
-      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.gif',
-      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.svg.png',
-      brand.replace(/[^A-Za-z0-9]/g, '_') + '.png',
-      brand.replace(/[^A-Za-z0-9]/g, '_') + '.jpg',
-      brand.replace(/[^A-Za-z0-9]/g, '_') + '.jpeg',
-      brand.replace(/[^A-Za-z0-9]/g, '_') + '.webp',
-      brand.replace(/[^A-Za-z0-9]/g, '_') + '.gif',
-      brand.replace(/[^A-Za-z0-9]/g, '_') + '.svg.png',
-      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.png',
-      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpg',
-      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpeg',
-      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.webp',
-      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.gif',
-      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.svg.png',
-    ];
-    let found = false;
-    let i = 0;
-    const tryNext = () => {
-      if (i >= filePatterns.length) {
-        setLogoSrc(null);
-        return;
-      }
-      const img = new window.Image();
-      img.onload = () => {
-        if (!found) {
-          found = true;
-          setLogoSrc(`/brand-logos/${filePatterns[i]}`);
-        }
-      };
-      img.onerror = () => {
-        i++;
-        tryNext();
-      };
-      img.src = `/brand-logos/${filePatterns[i]}`;
+
+    // Manual override for problematic logos
+    const manualLogoMap = {
+      'A. O. SMITH': '/brand-logos/AOSmith.png',
+      'ADVANTAGE': '/brand-logos/Advantage.jpg',
+      'ALLIED': '/brand-logos/Allied.png',
+      'ARCOAIRE': '/brand-logos/Arcoaire.jpeg',
+      'ARISTON': '/brand-logos/Ariston.jpg',
+      'BLUERIDGE': '/brand-logos/Blueridge.png',
+      'BOSCH': '/brand-logos/Bosch.png',
+      'FUJITSU': '/brand-logos/Fujitsu.png',
+      'GRIDLESS': '/brand-logos/Gridless.png',
+      'LAARS': '/brand-logos/Laars.jpeg'
     };
-    tryNext();
+
+    // First check manual override
+    if (manualLogoMap[brand]) {
+      const img = new window.Image();
+      img.onload = () => setLogoSrc(manualLogoMap[brand]);
+      img.onerror = () => {
+        console.log(`Manual override failed for ${brand}, trying auto patterns`);
+        tryAutoPatterns();
+      };
+      img.src = manualLogoMap[brand];
+      return;
+    }
+
+    // Fall back to automatic pattern matching
+    tryAutoPatterns();
+
+    function tryAutoPatterns() {
+      const filePatterns = [
+        brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.png',
+        brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.jpg',
+        brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.jpeg',
+        brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.webp',
+        brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.gif',
+        brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.svg.png',
+        brand.replace(/[^A-Za-z0-9]/g, '_') + '.png',
+        brand.replace(/[^A-Za-z0-9]/g, '_') + '.jpg',
+        brand.replace(/[^A-Za-z0-9]/g, '_') + '.jpeg',
+        brand.replace(/[^A-Za-z0-9]/g, '_') + '.webp',
+        brand.replace(/[^A-Za-z0-9]/g, '_') + '.gif',
+        brand.replace(/[^A-Za-z0-9]/g, '_') + '.svg.png',
+        brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.png',
+        brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpg',
+        brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpeg',
+        brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.webp',
+        brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.gif',
+        brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.svg.png',
+      ];
+      
+      let found = false;
+      let i = 0;
+      const tryNext = () => {
+        if (i >= filePatterns.length) {
+          setLogoSrc(null);
+          return;
+        }
+        const img = new window.Image();
+        img.onload = () => {
+          if (!found) {
+            found = true;
+            setLogoSrc(`/brand-logos/${filePatterns[i]}`);
+          }
+        };
+        img.onerror = () => {
+          i++;
+          tryNext();
+        };
+        img.src = `/brand-logos/${filePatterns[i]}`;
+      };
+      tryNext();
+    }
   }, [brand]);
 
   // Get all products for this brand
