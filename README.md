@@ -12,8 +12,7 @@ Node.js and Python are required. To run the interface, clone the repo and run np
 
 **Usage and Features**
 
-The site is sorted by brand. The search bar allows you to look up any brand in the interface. Clicking on a brand displays all the series associated with it. You can then click on a series to view specific models. The search is case-insensitive, and a back button is available to return from the brand view.
-
+The site is sorted by brand. The search bar allows you to look up any brand in the interface and it isn't case sensitive. Clicking on a brand displays all the series associated with it. You can then click on a series to view specific models. Once you click on brands and series there's a back button to return to prior pages.
 
 **Challenges & Solutions**
 
