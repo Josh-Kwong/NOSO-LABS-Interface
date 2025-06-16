@@ -7,7 +7,7 @@ The majority of the data comes from AHRI databases. The web scraping script in s
 
 **Setup Instructions**
 
-Node.js and Python are required. To run the interface, simply clone the repo and run npm install followed by npm start to launch the site locally.
+Node.js and Python are required. To run the interface, clone the repo and run npm install followed by npm start to launch the site locally.
 
 
 **Usage and Features**
