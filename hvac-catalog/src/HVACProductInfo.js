@@ -225,9 +225,7 @@ const ProductDetailsPage = ({ brand, category, model, onBack }) => {
               }`}>
                 {model.status === 'Active' ? (
                   <CheckCircle className="w-4 h-4 mr-1" />
-                ) : (
-                  <XCircle className="w-4 h-4 mr-1" />
-                )}
+                ) : null}
                 {model.status}
               </span>
             </div>

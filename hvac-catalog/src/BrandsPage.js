@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronRight, Thermometer } from 'lucide-react';
+import { Search, ChevronRight, Thermometer, Filter } from 'lucide-react';
 import allProductsData from './all_products.json';
 
 const headerValues = [
@@ -11,8 +11,9 @@ const headerValues = [
   undefined
 ];
 
-const BrandsPage = ({ onSelectBrand }) => {
+const BrandsPage = ({ onSelectBrand, onSelectModel }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchMode, setSearchMode] = useState('brands'); // 'brands' or 'models'
 
   // Aggregate all products from all categories
   const products = useMemo(() => Object.values(allProductsData.products_by_category || {}).flat(), []);
@@ -50,6 +51,51 @@ const BrandsPage = ({ onSelectBrand }) => {
     return Array.from(brandSet).sort((a, b) => a.localeCompare(b));
   }, [products]);
 
+  // Filter brands based on search term
+  const filteredBrands = useMemo(() => {
+    if (!searchTerm) return allBrands;
+    const searchLower = searchTerm.toLowerCase();
+    return allBrands.filter(brand => 
+      brand.toLowerCase().includes(searchLower)
+    );
+  }, [allBrands, searchTerm]);
+
+  // Filter models based on search term
+  const filteredModels = useMemo(() => {
+    if (!searchTerm || searchMode !== 'models') return [];
+    const searchLower = searchTerm.toLowerCase();
+    
+    return products.filter(product => {
+      // Check model numbers first (highest priority)
+      const modelFields = [
+        'Outdoor Unit Model Number',
+        'Indoor Unit Model Number',
+        'Model Number',
+        'Furnace Model Number'
+      ];
+      
+      const hasMatchingModel = modelFields.some(field => {
+        const modelNumber = product[field];
+        return modelNumber && modelNumber.toLowerCase().includes(searchLower);
+      });
+      
+      if (hasMatchingModel) return true;
+
+      // Check other relevant fields
+      const otherFields = [
+        'Outdoor Unit Series Name',
+        'Indoor Unit Series Name',
+        'Series Name',
+        'product_category'
+      ];
+
+      return otherFields.some(field => {
+        const value = product[field];
+        return value && value.toLowerCase().includes(searchLower);
+      });
+    });
+  }, [products, searchTerm, searchMode]);
+
   // Most searched brands (hardcoded as requested)
   const mostSearchedBrandNames = [
     'LENNOX',
@@ -85,9 +131,38 @@ const BrandsPage = ({ onSelectBrand }) => {
     );
   }, [otherBrands, searchTerm]);
 
-  const handleBrandClick = (brandName) => {
-    if (onSelectBrand) {
-      onSelectBrand(brandName);
+  const handleBrandClick = (brand) => {
+    onSelectBrand(brand);
+  };
+
+  const handleModelClick = (model) => {
+    // Find the brand for this model
+    const brandFields = [
+      'Outdoor Unit Brand Name',
+      'Indoor Unit Brand Name',
+      'Brand Name'
+    ];
+    const field = brandFields.find(field => model[field]);
+    const brand = field ? model[field] : undefined;
+
+    // Find the category for this model
+    const categoryFields = [
+      'product_category',
+      'Outdoor Unit Series Name',
+      'Indoor Unit Series Name',
+      'Series Name'
+    ];
+    const categoryField = categoryFields.find(field => model[field]);
+    const category = categoryField ? model[categoryField] : undefined;
+
+    // Ensure modelNumber property exists for ProductDetailsPage lookup
+    const modelNumber = model['Outdoor Unit Model Number'] || model['Indoor Unit Model Number'] || model['Model Number'] || model['Furnace Model Number'];
+    const modelForDetails = { ...model, modelNumber };
+
+    if (onSelectModel) {
+      onSelectModel(modelForDetails, brand, category);
+    } else if (brand) {
+      onSelectBrand(brand);
     }
   };
 
@@ -178,51 +253,108 @@ const BrandsPage = ({ onSelectBrand }) => {
       {/* Header */}
       <div className="bg-white p-6 shadow-sm sticky top-0 z-10">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Thermometer className="w-6 h-6 text-white" />
-          </div>
           <h1 className="text-2xl font-semibold text-gray-900">HVAC Catalog</h1>
         </div>
         {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search brands..."
-            className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-lg"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setSearchMode('brands')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                searchMode === 'brands'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Search Brands
+            </button>
+            <button
+              onClick={() => setSearchMode('models')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                searchMode === 'models'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Search Models
+            </button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder={searchMode === 'brands' ? "Search brands..." : "Search model numbers..."}
+              className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-lg"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
       {/* Content */}
       <div className="p-6">
-        {/* Most Searched Brands Section */}
-        {!searchTerm && filteredMostSearched.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-blue-600 mb-4">Most Searched Brands</h2>
-            <div className="grid gap-4">
-              {filteredMostSearched.map((brand) => (
-                <BrandCard key={brand} brand={brand} />
-              ))}
+        {searchMode === 'brands' ? (
+          <>
+            {/* Most Searched Brands */}
+            {!searchTerm && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Most Searched Brands</h2>
+                <div className="grid gap-3">
+                  {mostSearchedBrandNames
+                    .filter(brand => allBrands.includes(brand))
+                    .map(brand => (
+                      <BrandCard key={brand} brand={brand} />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* All Brands */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                {searchTerm ? 'Search Results' : 'All Brands'}
+              </h2>
+              <div className="grid gap-3">
+                {filteredBrands.map(brand => (
+                  <BrandCard key={brand} brand={brand} />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-        {/* All Brands Section */}
-        {filteredOtherBrands.length > 0 && (
+          </>
+        ) : (
           <div>
-            <h2 className="text-xl font-semibold text-blue-600 mb-4">All Brands</h2>
-            <div className="grid gap-4">
-              {filteredOtherBrands.map((brand) => (
-                <BrandCard key={brand} brand={brand} />
-              ))}
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              {searchTerm ? 'Search Results' : 'Search for a model'}
+            </h2>
+            <div className="grid gap-3">
+              {filteredModels.map((model, index) => {
+                const modelNumber = model['Outdoor Unit Model Number'] || 
+                                 model['Indoor Unit Model Number'] || 
+                                 model['Model Number'] || 
+                                 model['Furnace Model Number'];
+                const brand = model['Outdoor Unit Brand Name'] || 
+                            model['Indoor Unit Brand Name'] || 
+                            model['Brand Name'];
+                
+                return (
+                  <button
+                    key={`${modelNumber}-${index}`}
+                    onClick={() => handleModelClick(model)}
+                    className="w-full flex items-center justify-between p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-blue-100 hover:bg-blue-50"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="text-left">
+                        <h3 className="font-medium text-gray-900 text-sm">
+                          {modelNumber}
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">{brand}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </button>
+                );
+              })}
             </div>
-          </div>
-        )}
-        {/* No Results */}
-        {searchTerm && filteredMostSearched.length === 0 && filteredOtherBrands.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No brands found for "{searchTerm}"</p>
           </div>
         )}
         {/* Total Count */}

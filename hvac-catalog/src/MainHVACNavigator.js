@@ -41,7 +41,11 @@ const MainHVACNavigator = () => {
     );
   }
 
-  return <BrandsPage onSelectBrand={setSelectedBrand} />;
+  return <BrandsPage onSelectBrand={setSelectedBrand} onSelectModel={(model, brand, category) => {
+    setSelectedBrand(brand);
+    setSelectedCategory(category);
+    setSelectedModel(model);
+  }} />;
 };
 
 export default MainHVACNavigator; 
