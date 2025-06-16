@@ -17,6 +17,23 @@ const BrandsPage = () => {
   // Aggregate all products from all categories
   const products = useMemo(() => Object.values(allProductsData.products_by_category || {}).flat(), []);
 
+  const normalizeBrand = (brand) => {
+    if (!brand) return brand;
+    const upper = brand.trim().toUpperCase();
+    if (['GE', 'GE PROFILE', 'GE APPLIANCES'].includes(upper)) return 'GE';
+    if ([
+      'ALSETRIA',
+      'IDEAL USA',
+      'PUREPRO',
+      'STATE',
+      'BRYANT HEATING AND COOLING SYSTEMS'
+    ].includes(upper)) return null;
+    if (upper.startsWith('KEPLER')) return 'KEPLER';
+    if (upper.startsWith('RUUD')) return 'RUUD';
+    if (upper.startsWith('SAINT ROCH')) return 'SAINT ROCH';
+    return brand.trim();
+  };
+
   // Extract all unique brands using the first 'brand' key found in each product
   const allBrands = useMemo(() => {
     const brandSet = new Set();
@@ -25,8 +42,9 @@ const BrandsPage = () => {
         key => key.toLowerCase().includes('brand') && !headerValues.includes(product[key]) && typeof product[key] === 'string' && product[key].trim() !== ''
       );
       if (brandKey) {
-        const brand = product[brandKey].trim();
-        if (!headerValues.includes(brand)) brandSet.add(brand);
+        let brand = product[brandKey].trim();
+        brand = normalizeBrand(brand);
+        if (brand && !headerValues.includes(brand)) brandSet.add(brand);
       }
     });
     return Array.from(brandSet).sort((a, b) => a.localeCompare(b));
@@ -50,18 +68,15 @@ const BrandsPage = () => {
       .filter(Boolean);
   }, [allBrands]);
 
-  // All other brands, excluding most searched
+  // All other brands, including most searched (so they appear in both sections)
   const otherBrands = useMemo(() => {
-    return allBrands.filter(brand => !mostSearchedBrandNames.includes(brand.toUpperCase()));
+    return allBrands;
   }, [allBrands]);
 
   // Filter brands based on search term
   const filteredMostSearched = useMemo(() => {
-    if (!searchTerm) return mostSearchedBrands;
-    return mostSearchedBrands.filter(brand =>
-      brand.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [mostSearchedBrands, searchTerm]);
+    return mostSearchedBrands;
+  }, [mostSearchedBrands]);
 
   const filteredOtherBrands = useMemo(() => {
     if (!searchTerm) return otherBrands;
@@ -75,23 +90,81 @@ const BrandsPage = () => {
     // TODO: Navigate to products page when ready
   };
 
-  const BrandCard = ({ brand }) => (
-    <button
-      onClick={() => handleBrandClick(brand)}
-      className="w-full flex items-center justify-between p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-blue-100 hover:bg-blue-50"
-    >
-      <div className="flex items-center space-x-4">
-        {/* Empty space for brand logo */}
-        <div className="w-14 h-14 bg-gray-50 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-200">
-          <span className="text-xs text-gray-400 font-medium">LOGO</span>
+  const BrandCard = ({ brand }) => {
+    // List of possible file extensions and patterns
+    const filePatterns = [
+      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.png',
+      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.jpg',
+      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.jpeg',
+      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.webp',
+      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.gif',
+      brand.toUpperCase().replace(/[^A-Z0-9]/g, '') + '.svg.png',
+      brand.replace(/[^A-Za-z0-9]/g, '_') + '.png',
+      brand.replace(/[^A-Za-z0-9]/g, '_') + '.jpg',
+      brand.replace(/[^A-Za-z0-9]/g, '_') + '.jpeg',
+      brand.replace(/[^A-Za-z0-9]/g, '_') + '.webp',
+      brand.replace(/[^A-Za-z0-9]/g, '_') + '.gif',
+      brand.replace(/[^A-Za-z0-9]/g, '_') + '.svg.png',
+      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.png',
+      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpg',
+      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpeg',
+      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.webp',
+      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.gif',
+      brand.toLowerCase().replace(/[^a-z0-9]/g, '') + '.svg.png',
+    ];
+
+    const [logoSrc, setLogoSrc] = useState(null);
+
+    React.useEffect(() => {
+      let found = false;
+      let i = 0;
+      const tryNext = () => {
+        if (i >= filePatterns.length) {
+          setLogoSrc(null);
+          return;
+        }
+        const img = new window.Image();
+        img.onload = () => {
+          if (!found) {
+            found = true;
+            setLogoSrc(`/brand-logos/${filePatterns[i]}`);
+          }
+        };
+        img.onerror = () => {
+          i++;
+          tryNext();
+        };
+        img.src = `/brand-logos/${filePatterns[i]}`;
+      };
+      tryNext();
+      // eslint-disable-next-line
+    }, [brand]);
+
+    return (
+      <button
+        onClick={() => handleBrandClick(brand)}
+        className="w-full flex items-center justify-between p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-blue-100 hover:bg-blue-50"
+      >
+        <div className="flex items-center space-x-4">
+          <div className="w-14 h-14 bg-gray-50 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-200 overflow-hidden">
+            {logoSrc ? (
+              <img
+                src={logoSrc}
+                alt={`${brand} logo`}
+                className="object-contain w-full h-full"
+              />
+            ) : (
+              <span className="text-xs text-gray-400 font-medium">LOGO</span>
+            )}
+          </div>
+          <div className="text-left">
+            <h3 className="font-semibold text-gray-900 text-lg">{brand}</h3>
+          </div>
         </div>
-        <div className="text-left">
-          <h3 className="font-semibold text-gray-900 text-lg">{brand}</h3>
-        </div>
-      </div>
-      <ChevronRight className="w-5 h-5 text-gray-400" />
-    </button>
-  );
+        <ChevronRight className="w-5 h-5 text-gray-400" />
+      </button>
+    );
+  };
 
   // Calculate total products for display
   const totalProducts = useMemo(() => {
@@ -123,7 +196,7 @@ const BrandsPage = () => {
       {/* Content */}
       <div className="p-6">
         {/* Most Searched Brands Section */}
-        {filteredMostSearched.length > 0 && (
+        {!searchTerm && filteredMostSearched.length > 0 && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-blue-600 mb-4">Most Searched Brands</h2>
             <div className="grid gap-4">
